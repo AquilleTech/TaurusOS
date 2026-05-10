@@ -1,0 +1,83 @@
+name: Build ARM64 OS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Cache supaya tidak download ulang setiap push
+      - name: Cache kernel source
+        uses: actions/cache@v4
+        with:
+          path: linux-6.12.87
+          key: kernel-src-6.12.87
+
+      - name: Cache BusyBox source
+        uses: actions/cache@v4
+        with:
+          path: busybox-1.36.1
+          key: busybox-src-1.36.1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            build-essential bc bison flex \
+            libssl-dev libelf-dev \
+            gcc-aarch64-linux-gnu \
+            cpio xz-utils wget file
+
+      # ── KERNEL ──────────────────────────────────────
+      - name: Download kernel source
+        run: |
+          if [ ! -d linux-6.12.87 ]; then
+            echo "[*] Downloading Linux 6.12.87..."
+            wget -q https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.87.tar.xz
+            tar -xf linux-6.12.87.tar.xz
+            rm linux-6.12.87.tar.xz
+          else
+            echo "[*] Kernel source cached, skipping download."
+          fi
+
+      - name: Build kernel (ARM64)
+        run: bash kernel/build_kernel.sh
+
+      # ── ROOTFS ──────────────────────────────────────
+      - name: Download BusyBox source
+        run: |
+          if [ ! -d busybox-1.36.1 ]; then
+            echo "[*] Downloading BusyBox 1.36.1..."
+            wget -q https://busybox.net/downloads/busybox-1.36.1.tar.bz2
+            tar -xf busybox-1.36.1.tar.bz2
+            rm busybox-1.36.1.tar.bz2
+          else
+            echo "[*] BusyBox source cached, skipping download."
+          fi
+
+      - name: Build rootfs + initramfs
+        run: bash rootfs/build_rootfs.sh
+
+      # ── UPLOAD HASIL ────────────────────────────────
+      - name: Show artifact sizes
+        run: |
+          echo "=== Build Results ==="
+          ls -lh linux-6.12.87/arch/arm64/boot/Image
+          ls -lh initramfs.cpio.gz
+
+      - name: Upload OS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-os-${{ github.sha }}
+          path: |
+            linux-6.12.87/arch/arm64/boot/Image
+            initramfs.cpio.gz
+          retention-days: 14

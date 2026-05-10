@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# Mount virtual filesystem
+mount -t proc     none /proc
+mount -t sysfs    none /sys
+mount -t devtmpfs none /dev 2>/dev/null || mdev -s
+mount -t tmpfs    none /tmp
+
+# Setup hostname
+echo "myos" > /proc/sys/kernel/hostname
+
+# Tampilan welcome
+clear
+echo "╔══════════════════════════════════╗"
+echo "║        MyOS - ARM64              ║"
+echo "║   Built with Linux 6.12 LTS      ║"
+echo "╚══════════════════════════════════╝"
+echo ""
+echo "Kernel: $(uname -r)"
+echo "Arch  : $(uname -m)"
+echo ""
+
+# Jalankan shell interaktif
+exec /bin/sh
